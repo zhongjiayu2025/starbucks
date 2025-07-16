@@ -697,7 +697,7 @@ export default function StarbucksCalculator() {
       {/* Main Calculator */}
       <div className="mx-auto max-w-7xl px-4 pb-12">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-8">
             <TabsTrigger value="calculator">Starbucks Calorie Calculator</TabsTrigger>
             <TabsTrigger value="nutrition">Nutrition Analysis</TabsTrigger>
             <TabsTrigger value="tips">Smart Tips</TabsTrigger>
