@@ -195,6 +195,97 @@
     padding-left: 1rem;
     padding-right: 1rem;
   }
+
+  /* Optimize touch targets for mobile */
+  button,
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Improve text readability on mobile */
+  body {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Optimize form inputs for mobile */
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Better spacing for mobile cards */
+  .card-mobile {
+    margin-bottom: 1rem;
+  }
+
+  /* Optimize hero section for mobile */
+  .hero-mobile {
+    padding: 2rem 1rem;
+  }
+
+  /* Better mobile navigation */
+  .mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    padding: 1rem;
+    z-index: 50;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .calorie-counter {
+    font-size: 4rem;
+  }
+
+  .grid-tablet {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Improve performance with hardware acceleration */
+.calorie-counter,
+.card-hover,
+.hover-lift {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Optimize animations for mobile */
+@media (prefers-reduced-motion: reduce) {
+  .calorie-counter,
+  .card-hover,
+  .hover-lift,
+  .shimmer {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Better focus states for accessibility */
+.focus-visible:focus-visible {
+  outline: 3px solid hsl(var(--primary));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Improve contrast for better accessibility */
+.high-contrast {
+  filter: contrast(1.2);
+}
+
+/* Optimize for dark mode performance */
+@media (prefers-color-scheme: dark) {
+  * {
+    color-scheme: dark;
+  }
 }
 
 /* Print styles */

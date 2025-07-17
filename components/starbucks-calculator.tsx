@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import type React from "react"
+
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -463,6 +465,15 @@ const healthyTips = [
   "Try oat milk for a creamy texture with moderate starbucks oat milk calories",
 ]
 
+// 防抖函数
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => func(...args), wait)
+  }
+}
+
 export default function StarbucksCalculator() {
   const { theme, setTheme } = useTheme()
   const [selectedCategory, setSelectedCategory] = useState("hot")
@@ -473,12 +484,68 @@ export default function StarbucksCalculator() {
   const [syrupPumps, setSyrupPumps] = useState<Record<string, number>>({})
   const [selectedToppings, setSelectedToppings] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [favorites, setFavorites] = useState<string[]>([])
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState("calculator")
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // 添加防抖搜索
+  const debouncedSearch = useCallback(
+    debounce((term: string) => {
+      setDebouncedSearchTerm(term)
+    }, 300),
+    [],
+  )
+
+  useEffect(() => {
+    debouncedSearch(searchTerm)
+  }, [searchTerm, debouncedSearch])
+
+  // 保存到本地存储
+  const saveToLocalStorage = useCallback((key: string, value: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value))
+    } catch (error) {
+      console.warn("Failed to save to localStorage:", error)
+    }
+  }, [])
+
+  // 从本地存储读取
+  const loadFromLocalStorage = useCallback((key: string, defaultValue: any) => {
+    try {
+      const item = localStorage.getItem(key)
+      return item ? JSON.parse(item) : defaultValue
+    } catch (error) {
+      console.warn("Failed to load from localStorage:", error)
+      return defaultValue
+    }
+  }, [])
+
+  // 在useEffect中加载保存的偏好
+  useEffect(() => {
+    const savedFavorites = loadFromLocalStorage("starbucks-favorites", [])
+    setFavorites(savedFavorites)
+  }, [loadFromLocalStorage])
+
+  // 保存收藏夹变化
+  useEffect(() => {
+    saveToLocalStorage("starbucks-favorites", favorites)
+  }, [favorites, saveToLocalStorage])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      // 选择第一个搜索结果
+      if (filteredDrinks.length > 0) {
+        setSelectedDrink(filteredDrinks[0])
+      }
+    }
+  }
 
   // Calculate comprehensive nutrition
-  const nutrition = useMemo(() => {
+  const calculateNutrition = useCallback(() => {
     let calories = selectedDrink.baseCalories * selectedSize.multiplier
     let fat = (selectedDrink.fat || 0) * selectedSize.multiplier
     let carbs = (selectedDrink.carbs || 0) * selectedSize.multiplier
@@ -530,8 +597,14 @@ export default function StarbucksCalculator() {
     }
   }, [selectedDrink, selectedSize, selectedMilk, espressoShots, syrupPumps, selectedToppings])
 
-  const filteredDrinks = drinks[selectedCategory as keyof typeof drinks].filter((drink) =>
-    drink.name.toLowerCase().includes(searchTerm.toLowerCase()),
+  const nutrition = useMemo(() => calculateNutrition(), [calculateNutrition])
+
+  const filteredDrinks = useMemo(
+    () =>
+      drinks[selectedCategory as keyof typeof drinks].filter((drink) =>
+        drink.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()),
+      ),
+    [selectedCategory, debouncedSearchTerm],
   )
 
   const generateOrder = () => {
@@ -625,8 +698,12 @@ export default function StarbucksCalculator() {
                 priority
               />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Starbucks Calorie Calculator</h1>
-                <p className="text-green-600 dark:text-green-400 font-medium">Calculate Starbucks Calories Instantly</p>
+                <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+                  Starbucks Calorie Calculator
+                </h1>
+                <p className="text-green-600 dark:text-green-400 font-medium hidden sm:block">
+                  Calculate Starbucks Calories Instantly
+                </p>
               </div>
             </Link>
           </div>
@@ -660,7 +737,7 @@ export default function StarbucksCalculator() {
               className="rounded-2xl shadow-lg"
             />
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
             The Ultimate <span className="text-green-600">Starbucks Nutrition Calculator</span>
           </h2>
           <p className="text-lg text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
@@ -695,7 +772,7 @@ export default function StarbucksCalculator() {
       </section>
 
       {/* Main Calculator */}
-      <div className="mx-auto max-w-7xl px-4 pb-12">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-12">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-8">
             <TabsTrigger value="calculator">Starbucks Calorie Calculator</TabsTrigger>
@@ -715,6 +792,21 @@ export default function StarbucksCalculator() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6 pt-6">
+                    {error && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                        <p className="text-red-700">Error: {error}</p>
+                        <Button onClick={() => setError(null)} variant="outline" size="sm" className="mt-2">
+                          Try Again
+                        </Button>
+                      </div>
+                    )}
+
+                    {isLoading && (
+                      <div className="flex justify-center items-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                        <span className="ml-2 text-gray-600">Loading...</span>
+                      </div>
+                    )}
                     {/* Enhanced Category Selection */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {drinkCategories.map((category) => {
@@ -731,7 +823,7 @@ export default function StarbucksCalculator() {
                               selectedCategory === category.id
                                 ? "bg-green-600 hover:bg-green-700 text-white"
                                 : "hover:bg-green-50 dark:hover:bg-green-900/20"
-                            }`}
+                            } touch-manipulation`}
                           >
                             <Icon className="w-5 h-5" />
                             <span className="text-xs">{category.name}</span>
@@ -744,11 +836,18 @@ export default function StarbucksCalculator() {
                     <div className="relative">
                       <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                       <Input
-                        placeholder="Search drinks to calculate starbucks calories..."
+                        placeholder="Search drinks..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={handleKeyDown}
                         className="pl-10 border-green-200 focus:border-green-400"
+                        aria-label="Search Starbucks drinks"
+                        role="searchbox"
+                        aria-describedby="search-help"
                       />
+                      <div id="search-help" className="sr-only">
+                        Search through our database of Starbucks drinks to calculate calories
+                      </div>
                     </div>
 
                     {/* Enhanced Drink List */}
@@ -774,7 +873,7 @@ export default function StarbucksCalculator() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
+                                className="h-8 w-8 touch-manipulation"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   toggleFavorite(drink.id)
@@ -887,7 +986,7 @@ export default function StarbucksCalculator() {
                             variant="outline"
                             size="icon"
                             onClick={() => setEspressoShots(Math.max(0, espressoShots - 1))}
-                            className="h-10 w-10"
+                            className="h-10 w-10 touch-manipulation"
                           >
                             <Minus className="h-4 w-4" />
                           </Button>
@@ -899,7 +998,7 @@ export default function StarbucksCalculator() {
                             variant="outline"
                             size="icon"
                             onClick={() => setEspressoShots(espressoShots + 1)}
-                            className="h-10 w-10"
+                            className="h-10 w-10 touch-manipulation"
                           >
                             <Plus className="h-4 w-4" />
                           </Button>
@@ -932,7 +1031,7 @@ export default function StarbucksCalculator() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-8 w-8 bg-transparent"
+                                className="h-8 w-8 bg-transparent touch-manipulation"
                                 onClick={() =>
                                   setSyrupPumps((prev) => ({
                                     ...prev,
@@ -946,7 +1045,7 @@ export default function StarbucksCalculator() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-8 w-8 bg-transparent"
+                                className="h-8 w-8 bg-transparent touch-manipulation"
                                 onClick={() =>
                                   setSyrupPumps((prev) => ({
                                     ...prev,
@@ -1010,7 +1109,9 @@ export default function StarbucksCalculator() {
                 <Card className="border-2 border-green-200 dark:border-green-800">
                   <CardContent className="p-8 text-center">
                     <div className="mb-4">
-                      <div className="text-7xl font-bold text-green-600 mb-2 calorie-counter">{nutrition.calories}</div>
+                      <div className="text-5xl sm:text-6xl md:text-7xl font-bold text-green-600 mb-2 calorie-counter">
+                        {nutrition.calories}
+                      </div>
                       <div className="text-xl text-gray-600 dark:text-gray-300 font-medium">Total Calories</div>
                       <div className="text-sm text-gray-500 mt-1">Calculated with our starbucks calorie calculator</div>
                     </div>
@@ -1025,7 +1126,7 @@ export default function StarbucksCalculator() {
 
                     <Separator className="my-6" />
 
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 text-sm">
                       <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
                         <div className="font-medium text-orange-700 dark:text-orange-300">Fat</div>
                         <div className="text-lg font-bold text-orange-600">{nutrition.fat}g</div>
@@ -1087,8 +1188,8 @@ export default function StarbucksCalculator() {
                         {generateOrder()}
                       </pre>
                     </div>
-                    <div className="flex space-x-2">
-                      <Button onClick={copyOrder} className="flex-1 bg-green-600 hover:bg-green-700">
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                      <Button onClick={copyOrder} className="flex-1 bg-green-600 hover:bg-green-700 touch-manipulation">
                         {copied ? (
                           <>
                             <Check className="w-4 h-4 mr-2" />
@@ -1101,7 +1202,11 @@ export default function StarbucksCalculator() {
                           </>
                         )}
                       </Button>
-                      <Button variant="outline" onClick={() => toggleFavorite(selectedDrink.id)}>
+                      <Button
+                        variant="outline"
+                        onClick={() => toggleFavorite(selectedDrink.id)}
+                        className="touch-manipulation"
+                      >
                         <Heart
                           className={`w-4 h-4 ${favorites.includes(selectedDrink.id) ? "fill-red-500 text-red-500" : ""}`}
                         />
@@ -1324,7 +1429,7 @@ export default function StarbucksCalculator() {
                 <p className="text-sm text-gray-600 dark:text-gray-300">
                   Our <strong>calorie calculator for starbucks drinks</strong> includes precise
                   <strong>starbucks oat milk calories</strong> data for all drink sizes. You can easily compare oat milk
-                  with other alternatives to see how they affect your total drink calories.
+                  与其它替代品，看看它们如何影响您的总饮品卡路里。
                 </p>
               </div>
               <div>

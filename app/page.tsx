@@ -2,26 +2,47 @@ import type { Metadata } from "next"
 import StarbucksCalculator from "@/components/starbucks-calculator"
 
 export const metadata: Metadata = {
-  title: "Starbucks Calorie Calculator & Nutrition Guide",
+  title: "Free Starbucks Calorie Calculator | Calculate Drink Calories & Nutrition",
   description:
-    "Calculate calories and nutrition for any Starbucks drink. Our smart calculator offers tips for healthier choices. Customize your order in seconds!",
-  keywords:
-    "starbucks calorie calculator, starbucks nutrition guide, calculate starbucks calories, healthy starbucks, customize starbucks drink, starbucks oat milk calories",
+    "Calculate calories and nutrition for 500+ Starbucks drinks instantly. Get healthy tips, customize your order, and make informed choices. The most accurate Starbucks nutrition calculator.",
+  keywords: [
+    "starbucks calorie calculator",
+    "starbucks nutrition calculator",
+    "calculate starbucks calories",
+    "starbucks drink calories",
+    "starbucks oat milk calories",
+    "healthy starbucks drinks",
+    "starbucks nutrition facts",
+    "coffee calorie counter",
+    "frappuccino calories",
+    "starbucks menu calories",
+    "free calorie calculator",
+    "nutrition calculator",
+  ].join(", "),
   openGraph: {
-    title: "Starbucks Calorie Calculator & Nutrition Guide",
+    title: "Free Starbucks Calorie Calculator | Calculate Drink Calories & Nutrition",
     description:
-      "Calculate calories and nutrition for any Starbucks drink. Our smart calculator offers tips for healthier choices. Customize your order in seconds!",
+      "Calculate calories and nutrition for 500+ Starbucks drinks instantly. Get healthy tips, customize your order, and make informed choices.",
     type: "website",
-    url: "https://starbucks-calculator.vercel.app",
+    url: "https://starbuckscaloriecalculator.pro",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Starbucks Calorie Calculator - Calculate Your Drink Calories",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Starbucks Calorie Calculator & Nutrition Guide",
+    title: "Free Starbucks Calorie Calculator | Calculate Drink Calories & Nutrition",
     description:
-      "Calculate calories and nutrition for any Starbucks drink. Our smart calculator offers tips for healthier choices. Customize your order in seconds!",
+      "Calculate calories and nutrition for 500+ Starbucks drinks instantly. Get healthy tips and customize your order.",
+    images: ["/og-image.png"],
   },
   alternates: {
-    canonical: "https://starbucks-calculator.vercel.app",
+    canonical: "https://starbuckscaloriecalculator.pro",
   },
 }
 
