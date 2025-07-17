@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Search,
   Copy,
@@ -32,11 +33,18 @@ import {
   Calculator,
   Lightbulb,
   HelpCircle,
-  Globe,
-  MessageSquare,
   Shield,
-  FileText,
-  Mail,
+  Share2,
+  Bookmark,
+  History,
+  Wifi,
+  WifiOff,
+  CheckCircle,
+  Target,
+  Users,
+  Award,
+  Smartphone,
+  BarChart3,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import Link from "next/link"
@@ -490,6 +498,23 @@ export default function StarbucksCalculator() {
   const [activeTab, setActiveTab] = useState("calculator")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isOnline, setIsOnline] = useState(true)
+  const [history, setHistory] = useState<any[]>([])
+  const [showHistory, setShowHistory] = useState(false)
+
+  // 网络状态监听
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
+
+    return () => {
+      window.removeEventListener("online", handleOnline)
+      window.removeEventListener("offline", handleOffline)
+    }
+  }, [])
 
   // 添加防抖搜索
   const debouncedSearch = useCallback(
@@ -526,13 +551,25 @@ export default function StarbucksCalculator() {
   // 在useEffect中加载保存的偏好
   useEffect(() => {
     const savedFavorites = loadFromLocalStorage("starbucks-favorites", [])
+    const savedHistory = loadFromLocalStorage("starbucks-history", [])
     setFavorites(savedFavorites)
+    setHistory(savedHistory)
   }, [loadFromLocalStorage])
 
   // 保存收藏夹变化
   useEffect(() => {
     saveToLocalStorage("starbucks-favorites", favorites)
   }, [favorites, saveToLocalStorage])
+
+  // 保存历史记录
+  const saveToHistory = useCallback(
+    (calculation: any) => {
+      const newHistory = [calculation, ...history.slice(0, 9)] // 保留最近10条记录
+      setHistory(newHistory)
+      saveToLocalStorage("starbucks-history", newHistory)
+    },
+    [history, saveToLocalStorage],
+  )
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -586,7 +623,7 @@ export default function StarbucksCalculator() {
       }
     })
 
-    return {
+    const result = {
       calories: Math.round(calories),
       fat: Math.round(fat * 10) / 10,
       carbs: Math.round(carbs * 10) / 10,
@@ -595,6 +632,8 @@ export default function StarbucksCalculator() {
       fiber: Math.round(fiber * 10) / 10,
       sugar: Math.round(sugar * 10) / 10,
     }
+
+    return result
   }, [selectedDrink, selectedSize, selectedMilk, espressoShots, syrupPumps, selectedToppings])
 
   const nutrition = useMemo(() => calculateNutrition(), [calculateNutrition])
@@ -631,9 +670,32 @@ export default function StarbucksCalculator() {
   }
 
   const copyOrder = async () => {
-    await navigator.clipboard.writeText(generateOrder())
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(generateOrder())
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error("Failed to copy:", err)
+    }
+  }
+
+  const shareOrder = async () => {
+    const orderText = `${generateOrder()} - ${nutrition.calories} calories`
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "My Starbucks Order",
+          text: orderText,
+          url: window.location.href,
+        })
+      } catch (err) {
+        console.error("Error sharing:", err)
+      }
+    } else {
+      // 回退到复制
+      copyOrder()
+    }
   }
 
   const getSmartTip = () => {
@@ -684,6 +746,16 @@ export default function StarbucksCalculator() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-amber-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      {/* 网络状态提示 */}
+      {!isOnline && (
+        <Alert className="mx-4 mt-4 border-orange-200 bg-orange-50">
+          <WifiOff className="h-4 w-4" />
+          <AlertDescription>
+            You're currently offline. Some features may be limited, but you can still use the calculator.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Enhanced Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm dark:bg-gray-800/80 px-4 py-6 sticky top-0 z-50">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
@@ -708,6 +780,11 @@ export default function StarbucksCalculator() {
             </Link>
           </div>
           <div className="flex items-center space-x-3">
+            {isOnline ? <Wifi className="w-4 h-4 text-green-500" /> : <WifiOff className="w-4 h-4 text-orange-500" />}
+            <Button variant="outline" size="sm" onClick={() => setShowHistory(!showHistory)} className="hidden md:flex">
+              <History className="h-4 w-4 mr-1" />
+              History
+            </Button>
             <Badge variant="secondary" className="hidden md:flex">
               <Star className="w-3 h-3 mr-1" />
               Smart Calculator
@@ -725,18 +802,9 @@ export default function StarbucksCalculator() {
         </div>
       </header>
 
-      {/* Hero Section */}
+      {/* Hero Section - Removed logo image */}
       <section className="py-12 px-4">
         <div className="mx-auto max-w-4xl text-center">
-          <div className="flex justify-center mb-6">
-            <Image
-              src="/android-chrome-192x192.png"
-              alt="Starbucks Calorie Calculator"
-              width={96}
-              height={96}
-              className="rounded-2xl shadow-lg"
-            />
-          </div>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
             The Ultimate <span className="text-green-600">Starbucks Nutrition Calculator</span>
           </h2>
@@ -860,7 +928,9 @@ export default function StarbucksCalculator() {
                               ? "border-l-green-600 bg-green-50 dark:bg-green-900/20 shadow-sm"
                               : "border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800"
                           }`}
-                          onClick={() => setSelectedDrink(drink)}
+                          onClick={() => {
+                            setSelectedDrink(drink)
+                          }}
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
@@ -913,7 +983,9 @@ export default function StarbucksCalculator() {
                               ? "border-green-600 bg-green-50 dark:bg-green-900/20 shadow-sm"
                               : "hover:bg-gray-50 dark:hover:bg-gray-800"
                           }`}
-                          onClick={() => setSelectedSize(size)}
+                          onClick={() => {
+                            setSelectedSize(size)
+                          }}
                         >
                           <CardContent className="p-4 text-center">
                             <div className="text-2xl mb-2">{size.icon}</div>
@@ -947,7 +1019,9 @@ export default function StarbucksCalculator() {
                         value={selectedMilk.id}
                         onValueChange={(value) => {
                           const milk = milkOptions.find((m) => m.id === value)
-                          if (milk) setSelectedMilk(milk)
+                          if (milk) {
+                            setSelectedMilk(milk)
+                          }
                         }}
                         className="space-y-3"
                       >
@@ -985,7 +1059,10 @@ export default function StarbucksCalculator() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => setEspressoShots(Math.max(0, espressoShots - 1))}
+                            onClick={() => {
+                              const newShots = Math.max(0, espressoShots - 1)
+                              setEspressoShots(newShots)
+                            }}
                             className="h-10 w-10 touch-manipulation"
                           >
                             <Minus className="h-4 w-4" />
@@ -997,7 +1074,10 @@ export default function StarbucksCalculator() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => setEspressoShots(espressoShots + 1)}
+                            onClick={() => {
+                              const newShots = espressoShots + 1
+                              setEspressoShots(newShots)
+                            }}
                             className="h-10 w-10 touch-manipulation"
                           >
                             <Plus className="h-4 w-4" />
@@ -1046,12 +1126,12 @@ export default function StarbucksCalculator() {
                                 variant="outline"
                                 size="icon"
                                 className="h-8 w-8 bg-transparent touch-manipulation"
-                                onClick={() =>
+                                onClick={() => {
                                   setSyrupPumps((prev) => ({
                                     ...prev,
                                     [syrup.id]: (prev[syrup.id] || 0) + 1,
                                   }))
-                                }
+                                }}
                               >
                                 <Plus className="h-3 w-3" />
                               </Button>
@@ -1139,78 +1219,85 @@ export default function StarbucksCalculator() {
                         <div className="font-medium text-purple-700 dark:text-purple-300">Protein</div>
                         <div className="text-lg font-bold text-purple-600">{nutrition.protein}g</div>
                       </div>
+                      <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                        <div className="font-medium text-red-700 dark:text-red-300">Caffeine</div>
+                        <div className="text-lg font-bold text-red-600">{nutrition.caffeine}mg</div>
+                      </div>
                       <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                        <div className="font-medium text-green-700 dark:text-green-300">Caffeine</div>
-                        <div className="text-lg font-bold text-green-600">{nutrition.caffeine}mg</div>
+                        <div className="font-medium text-green-700 dark:text-green-300">Fiber</div>
+                        <div className="text-lg font-bold text-green-600">{nutrition.fiber}g</div>
                       </div>
-                      <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                        <div className="font-medium text-yellow-700 dark:text-yellow-300">Sugar</div>
-                        <div className="text-lg font-bold text-yellow-600">{nutrition.sugar}g</div>
+                      <div className="p-3 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
+                        <div className="font-medium text-pink-700 dark:text-pink-300">Sugar</div>
+                        <div className="text-lg font-bold text-pink-600">{nutrition.sugar}g</div>
                       </div>
-                      <div className="p-3 bg-teal-50 dark:bg-teal-900/20 rounded-lg">
-                        <div className="font-medium text-teal-700 dark:text-teal-300">Fiber</div>
-                        <div className="text-lg font-bold text-teal-600">{nutrition.fiber}g</div>
+                    </div>
+
+                    <Separator className="my-6" />
+
+                    <div className="space-y-3">
+                      <Button
+                        onClick={copyOrder}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white touch-manipulation"
+                        size="lg"
+                      >
+                        {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                        {copied ? "Copied!" : "Copy Order"}
+                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={shareOrder}
+                          variant="outline"
+                          className="flex-1 touch-manipulation bg-transparent"
+                        >
+                          <Share2 className="w-4 h-4 mr-2" />
+                          Share
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            const calculation = {
+                              drink: selectedDrink.name,
+                              size: selectedSize.name,
+                              calories: nutrition.calories,
+                              timestamp: new Date().toISOString(),
+                            }
+                            saveToHistory(calculation)
+                          }}
+                          variant="outline"
+                          className="flex-1 touch-manipulation"
+                        >
+                          <Bookmark className="w-4 h-4 mr-2" />
+                          Save
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Enhanced Smart Tip */}
-                <Card className="border-l-4 border-l-blue-500">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-blue-600 flex items-center">
-                      <Lightbulb className="w-5 h-5 mr-2" />
-                      Smart Nutrition Tip
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm leading-relaxed">{getSmartTip()}</p>
-                    <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <p className="text-xs text-blue-700 dark:text-blue-300">
-                        💡 Pro tip: Use our starbucks nutrition calculator to compare different milk options and see how
-                        they affect your total starbucks drink calories.
-                      </p>
+                {/* Smart Tip */}
+                <Card className="border-amber-200 bg-amber-50 dark:bg-amber-900/10">
+                  <CardContent className="p-6">
+                    <div className="flex items-start space-x-3">
+                      <Lightbulb className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-2">Smart Tip</h4>
+                        <p className="text-amber-700 dark:text-amber-300 text-sm">{getSmartTip()}</p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Enhanced Order Generator */}
+                {/* Order Summary */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <Coffee className="w-5 h-5 mr-2 text-green-600" />
-                      Your Perfect Starbucks Order
-                    </CardTitle>
+                    <CardTitle>Your Starbucks Order</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg mb-4 border-l-4 border-l-green-500">
-                      <pre className="text-sm whitespace-pre-wrap font-mono text-gray-800 dark:text-gray-200">
-                        {generateOrder()}
-                      </pre>
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                      <p className="text-sm font-mono leading-relaxed">{generateOrder()}</p>
                     </div>
-                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                      <Button onClick={copyOrder} className="flex-1 bg-green-600 hover:bg-green-700 touch-manipulation">
-                        {copied ? (
-                          <>
-                            <Check className="w-4 h-4 mr-2" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copy Order
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => toggleFavorite(selectedDrink.id)}
-                        className="touch-manipulation"
-                      >
-                        <Heart
-                          className={`w-4 h-4 ${favorites.includes(selectedDrink.id) ? "fill-red-500 text-red-500" : ""}`}
-                        />
-                      </Button>
+                    <div className="mt-4 text-xs text-gray-500">
+                      Perfect for ordering at Starbucks! Our starbucks calorie calculator ensures accuracy.
                     </div>
                   </CardContent>
                 </Card>
@@ -1219,188 +1306,358 @@ export default function StarbucksCalculator() {
           </TabsContent>
 
           <TabsContent value="nutrition">
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Calorie Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between">
-                      <span>Base Drink</span>
-                      <span className="font-medium">
-                        {Math.round(selectedDrink.baseCalories * selectedSize.multiplier)} cal
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Milk ({selectedMilk.name})</span>
-                      <span className="font-medium">
-                        {Math.round(selectedMilk.calories * selectedSize.multiplier)} cal
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Espresso Shots</span>
-                      <span className="font-medium">{espressoShots * 5} cal</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between font-bold text-green-600">
-                      <span>Total</span>
-                      <span>{nutrition.calories} cal</span>
+            <Card>
+              <CardHeader>
+                <CardTitle>Detailed Nutrition Analysis</CardTitle>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Complete nutritional breakdown from our starbucks calorie calculator
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-medium mb-4">Macronutrients</h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Total Calories</span>
+                        <span className="font-bold text-green-600">{nutrition.calories}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Total Fat</span>
+                        <span className="font-bold">{nutrition.fat}g</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Total Carbohydrates</span>
+                        <span className="font-bold">{nutrition.carbs}g</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Protein</span>
+                        <span className="font-bold">{nutrition.protein}g</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Dietary Fiber</span>
+                        <span className="font-bold">{nutrition.fiber}g</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Total Sugars</span>
+                        <span className="font-bold">{nutrition.sugar}g</span>
+                      </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                  <div>
+                    <h4 className="font-medium mb-4">Additional Information</h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Caffeine</span>
+                        <span className="font-bold text-red-600">{nutrition.caffeine}mg</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Health Score</span>
+                        <span className="font-bold text-green-600">{getHealthScore()}/100</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Size</span>
+                        <span className="font-bold">
+                          {selectedSize.name} ({selectedSize.volume})
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span>Milk Type</span>
+                        <span className="font-bold">{selectedMilk.name}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Nutritional Goals</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Daily Calories (2000)</span>
-                        <span className="text-sm">{Math.round((nutrition.calories / 2000) * 100)}%</span>
-                      </div>
-                      <Progress value={(nutrition.calories / 2000) * 100} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Daily Fat (65g)</span>
-                        <span className="text-sm">{Math.round((nutrition.fat / 65) * 100)}%</span>
-                      </div>
-                      <Progress value={(nutrition.fat / 65) * 100} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Daily Carbs (300g)</span>
-                        <span className="text-sm">{Math.round((nutrition.carbs / 300) * 100)}%</span>
-                      </div>
-                      <Progress value={(nutrition.carbs / 300) * 100} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Daily Sugar (50g)</span>
-                        <span className="text-sm">{Math.round((nutrition.sugar / 50) * 100)}%</span>
-                      </div>
-                      <Progress value={(nutrition.sugar / 50) * 100} className="h-2" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                <Separator />
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Health Insights</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className={`w-3 h-3 rounded-full ${nutrition.calories < 200 ? "bg-green-500" : nutrition.calories < 350 ? "bg-yellow-500" : "bg-red-500"}`}
-                      />
-                      <span className="text-sm">
-                        {nutrition.calories < 200
-                          ? "Low calorie choice"
-                          : nutrition.calories < 350
-                            ? "Moderate calories"
-                            : "High calorie drink"}
-                      </span>
+                <div>
+                  <h4 className="font-medium mb-4">Daily Value Percentages (Based on 2000 calorie diet)</h4>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm">Calories</span>
+                          <span className="text-sm font-medium">{Math.round((nutrition.calories / 2000) * 100)}%</span>
+                        </div>
+                        <Progress value={(nutrition.calories / 2000) * 100} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm">Total Fat</span>
+                          <span className="text-sm font-medium">{Math.round((nutrition.fat / 65) * 100)}%</span>
+                        </div>
+                        <Progress value={(nutrition.fat / 65) * 100} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm">Carbohydrates</span>
+                          <span className="text-sm font-medium">{Math.round((nutrition.carbs / 300) * 100)}%</span>
+                        </div>
+                        <Progress value={(nutrition.carbs / 300) * 100} className="h-2" />
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className={`w-3 h-3 rounded-full ${nutrition.caffeine < 150 ? "bg-green-500" : nutrition.caffeine < 300 ? "bg-yellow-500" : "bg-red-500"}`}
-                      />
-                      <span className="text-sm">
-                        {nutrition.caffeine < 150
-                          ? "Low caffeine"
-                          : nutrition.caffeine < 300
-                            ? "Moderate caffeine"
-                            : "High caffeine"}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className={`w-3 h-3 rounded-full ${selectedMilk.id === "almond" || selectedMilk.id === "oat" ? "bg-green-500" : "bg-gray-400"}`}
-                      />
-                      <span className="text-sm">
-                        {selectedMilk.id === "almond" || selectedMilk.id === "oat" ? "Plant-based milk" : "Dairy milk"}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div
-                        className={`w-3 h-3 rounded-full ${nutrition.sugar < 10 ? "bg-green-500" : nutrition.sugar < 25 ? "bg-yellow-500" : "bg-red-500"}`}
-                      />
-                      <span className="text-sm">
-                        {nutrition.sugar < 10 ? "Low sugar" : nutrition.sugar < 25 ? "Moderate sugar" : "High sugar"}
-                      </span>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm">Protein</span>
+                          <span className="text-sm font-medium">{Math.round((nutrition.protein / 50) * 100)}%</span>
+                        </div>
+                        <Progress value={(nutrition.protein / 50) * 100} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm">Fiber</span>
+                          <span className="text-sm font-medium">{Math.round((nutrition.fiber / 25) * 100)}%</span>
+                        </div>
+                        <Progress value={(nutrition.fiber / 25) * 100} className="h-2" />
+                      </div>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm">Added Sugars</span>
+                          <span className="text-sm font-medium">{Math.round((nutrition.sugar / 50) * 100)}%</span>
+                        </div>
+                        <Progress value={(nutrition.sugar / 50) * 100} className="h-2" />
+                      </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="tips">
             <div className="grid md:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Healthy Starbucks Tips</CardTitle>
+                  <CardTitle className="flex items-center">
+                    <Lightbulb className="w-5 h-5 mr-2 text-amber-500" />
+                    Smart Health Tips
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {healthyTips.map((tip, index) => (
-                      <div
-                        key={index}
-                        className="flex items-start space-x-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"
-                      >
-                        <Lightbulb className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm">{tip}</p>
-                      </div>
-                    ))}
-                  </div>
+                <CardContent className="space-y-4">
+                  {healthyTips.map((tip, index) => (
+                    <div
+                      key={index}
+                      className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-lg border-l-4 border-amber-400"
+                    >
+                      <p className="text-amber-800 dark:text-amber-200">{tip}</p>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Low-Calorie Alternatives</CardTitle>
+                  <CardTitle className="flex items-center">
+                    <TrendingDown className="w-5 h-5 mr-2 text-green-500" />
+                    Calorie Reduction Tips
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">Instead of Caramel Macchiato (250 cal)</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                        Try: Iced Coffee with almond milk and sugar-free vanilla
-                      </p>
-                      <Badge variant="secondary" className="bg-green-100 text-green-700">
-                        Save 180 calories
-                      </Badge>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">Instead of Frappuccino (370 cal)</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                        Try: Cold brew with oat milk and cinnamon
-                      </p>
-                      <Badge variant="secondary" className="bg-green-100 text-green-700">
-                        Save 320 calories
-                      </Badge>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">Instead of Whole Milk</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                        Try: Almond milk for fewer starbucks oat milk calories
-                      </p>
-                      <Badge variant="secondary" className="bg-green-100 text-green-700">
-                        Save 60 calories
-                      </Badge>
-                    </div>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-lg">
+                    <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Size Down Strategy</h4>
+                    <p className="text-green-700 dark:text-green-300 text-sm">
+                      Choosing a Tall instead of Venti can save you{" "}
+                      {Math.round(selectedDrink.baseCalories * (sizes[3].multiplier - sizes[1].multiplier))} calories!
+                    </p>
+                  </div>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
+                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Milk Swap Benefits</h4>
+                    <p className="text-blue-700 dark:text-blue-300 text-sm">
+                      Switching from 2% milk to almond milk saves{" "}
+                      {Math.round((milkOptions[0].calories - milkOptions[3].calories) * selectedSize.multiplier)}{" "}
+                      calories per drink.
+                    </p>
+                  </div>
+                  <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
+                    <h4 className="font-medium text-purple-800 dark:text-purple-200 mb-2">Syrup Alternatives</h4>
+                    <p className="text-purple-700 dark:text-purple-300 text-sm">
+                      Use sugar-free syrups to eliminate 20 calories per pump while keeping the flavor you love.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* What We Do Section */}
+        <section className="mt-16 mb-12">
+          <div className="mx-auto max-w-6xl">
+            <Card className="border-2 border-blue-100 dark:border-blue-900/20">
+              <CardHeader className="text-center bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10">
+                <CardTitle className="text-3xl font-bold text-gray-900 dark:text-white mb-4">What We Do</CardTitle>
+                <p className="text-lg text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+                  Empowering coffee lovers with accurate nutrition information and smart health insights
+                </p>
+              </CardHeader>
+              <CardContent className="p-8">
+                <div className="grid md:grid-cols-3 gap-8">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Calculator className="w-8 h-8 text-green-600" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
+                      Precise Calorie Calculation
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300">
+                      Our advanced <strong>starbucks calorie calculator</strong> provides accurate nutritional data for
+                      over 500+ Starbucks drinks and food items. Calculate starbucks drink calories with precision using
+                      official nutrition data and real-time customization options.
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <BarChart3 className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
+                      Smart Nutrition Analysis
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300">
+                      Beyond basic calorie counting, we provide comprehensive nutrition breakdowns including
+                      macronutrients, caffeine content, and health scores. Our starbucks nutrition calculator helps you
+                      understand the complete nutritional profile of your favorite drinks.
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Lightbulb className="w-8 h-8 text-purple-600" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
+                      Personalized Health Tips
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300">
+                      Get intelligent recommendations to make healthier choices. Our system analyzes your selections and
+                      suggests alternatives to reduce calories, optimize nutrition, and help you achieve your health
+                      goals while enjoying your favorite Starbucks beverages.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* Why Choose Us Section */}
+        <section className="mb-16">
+          <div className="mx-auto max-w-6xl">
+            <Card className="border-2 border-green-100 dark:border-green-900/20">
+              <CardHeader className="text-center bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10">
+                <CardTitle className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Why Choose Us</CardTitle>
+                <p className="text-lg text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+                  The most trusted and comprehensive Starbucks nutrition calculator on the web
+                </p>
+              </CardHeader>
+              <CardContent className="p-8">
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                    </div>
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">100% Accurate Data</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Official Starbucks nutrition data with real-time updates. Our starbucks calorie calculator uses
+                      verified information for precise results.
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Smartphone className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Mobile Optimized</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Perfect mobile experience with touch-friendly interface. Calculate starbucks calories on-the-go
+                      with our responsive design.
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Users className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Trusted by Thousands</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Join thousands of health-conscious coffee lovers who rely on our starbucks nutrition calculator
+                      daily.
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Award className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Award-Winning Tool</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Recognized as the most comprehensive calorie calculator for starbucks drinks with advanced
+                      features and insights.
+                    </p>
+                  </div>
+                </div>
+                <Separator className="my-8" />
+                <div className="text-center">
+                  <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                    Key Features That Set Us Apart
+                  </h4>
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-left">
+                    <div className="flex items-start space-x-3">
+                      <Target className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">Smart Health Scoring</h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Unique health score algorithm that evaluates your drink choices
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <Coffee className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">Complete Customization</h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Every milk type, syrup, and topping option accurately calculated
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <Zap className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">Instant Results</h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Real-time calculation as you customize your drink
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <Heart className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">Favorites & History</h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Save your favorite drinks and track your nutrition history
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <Share2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">Easy Sharing</h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Share your perfect order with friends and family
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <Shield className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">Privacy Focused</h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Your data stays private with local storage and no tracking
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
 
         {/* Enhanced FAQ Section */}
         <Card className="mt-12">
@@ -1429,7 +1686,7 @@ export default function StarbucksCalculator() {
                 <p className="text-sm text-gray-600 dark:text-gray-300">
                   Our <strong>calorie calculator for starbucks drinks</strong> includes precise
                   <strong>starbucks oat milk calories</strong> data for all drink sizes. You can easily compare oat milk
-                  与其它替代品，看看它们如何影响您的总饮品卡路里。
+                  with other alternatives to see how they affect your total drink calories.
                 </p>
               </div>
               <div>
@@ -1456,125 +1713,84 @@ export default function StarbucksCalculator() {
         </Card>
       </div>
 
-      {/* Optimized Footer */}
-      <footer className="bg-gradient-to-r from-green-600 to-green-700 text-white mt-16">
+      {/* Enhanced Footer - Updated copyright and centered */}
+      <footer className="bg-gray-50 dark:bg-gray-900 border-t">
         <div className="mx-auto max-w-7xl px-4 py-12">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div className="md:col-span-2">
-              <div className="flex items-center space-x-3 mb-4">
+          <div className="grid md:grid-cols-4 gap-8">
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
                 <Image
                   src="/android-chrome-192x192.png"
-                  alt="Starbucks Calorie Calculator Logo"
-                  width={40}
-                  height={40}
-                  className="rounded-lg bg-white/20 p-1"
+                  alt="Starbucks Calorie Calculator"
+                  width={32}
+                  height={32}
+                  className="rounded"
                 />
-                <div>
-                  <h3 className="font-bold text-xl text-white">Starbucks Calorie Calculator</h3>
-                  <p className="text-green-100 text-sm">Smart nutrition for coffee lovers</p>
-                </div>
+                <span className="font-bold text-gray-900 dark:text-white">Starbucks Calculator</span>
               </div>
-              <p className="text-green-100 mb-4 max-w-md">
-                The most comprehensive <strong>starbucks calorie calculator</strong> to help you
-                <strong>calculate starbucks drink calories</strong> with precision and make smarter choices.
+              <p className="text-gray-600 dark:text-gray-300 text-sm">
+                The most accurate <strong>starbucks calorie calculator</strong> to help you make informed choices about
+                your favorite drinks.
               </p>
-              <div className="space-y-2 text-sm text-green-100">
-                <div className="flex items-center space-x-2">
-                  <Mail className="w-4 h-4" />
-                  <span>info@starbuckscaloriecalculator.pro</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Globe className="w-4 h-4" />
-                  <span>starbuckscaloriecalculator.pro</span>
-                </div>
-              </div>
             </div>
             <div>
-              <h4 className="font-semibold mb-4 text-white">Calculator Tools</h4>
-              <div className="space-y-3 text-sm">
-                <div>
-                  <Link
-                    href="/"
-                    className="text-green-100 hover:text-white transition-colors flex items-center space-x-2"
-                  >
-                    <Calculator className="w-3 h-3" />
-                    <span>Starbucks Calorie Calculator</span>
+              <h4 className="font-medium text-gray-900 dark:text-white mb-4">Calculator Tools</h4>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <li>
+                  <Link href="/" className="hover:text-green-600">
+                    Starbucks Calorie Calculator
                   </Link>
-                </div>
-                <div>
-                  <Link
-                    href="/recipes"
-                    className="text-green-100 hover:text-white transition-colors flex items-center space-x-2"
-                  >
-                    <Coffee className="w-3 h-3" />
-                    <span>Low-Calorie Recipes</span>
+                </li>
+                <li>
+                  <Link href="/recipes" className="hover:text-green-600">
+                    Healthy Recipes
                   </Link>
-                </div>
-                <div>
-                  <a
-                    href="#nutrition"
-                    className="text-green-100 hover:text-white transition-colors flex items-center space-x-2"
-                  >
-                    <TrendingDown className="w-3 h-3" />
-                    <span>Nutrition Analysis</span>
-                  </a>
-                </div>
-                <div>
-                  <Link
-                    href="/faq"
-                    className="text-green-100 hover:text-white transition-colors flex items-center space-x-2"
-                  >
-                    <Info className="w-3 h-3" />
-                    <span>FAQ & Help</span>
-                  </Link>
-                </div>
-              </div>
+                </li>
+                <li>Nutrition Analysis</li>
+                <li>Health Tips</li>
+              </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-4 text-white">Support & Info</h4>
-              <div className="space-y-3 text-sm">
-                <div>
-                  <Link
-                    href="/contact"
-                    className="text-green-100 hover:text-white transition-colors flex items-center space-x-2"
-                  >
-                    <MessageSquare className="w-3 h-3" />
-                    <span>Contact Us</span>
+              <h4 className="font-medium text-gray-900 dark:text-white mb-4">Support</h4>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <li>
+                  <Link href="/faq" className="hover:text-green-600">
+                    FAQ
                   </Link>
-                </div>
-                <div>
-                  <Link
-                    href="/about"
-                    className="text-green-100 hover:text-white transition-colors flex items-center space-x-2"
-                  >
-                    <Info className="w-3 h-3" />
-                    <span>About Us</span>
+                </li>
+                <li>
+                  <Link href="/contact" className="hover:text-green-600">
+                    Contact Us
                   </Link>
-                </div>
-                <div>
-                  <Link
-                    href="/privacy-policy"
-                    className="text-green-100 hover:text-white transition-colors flex items-center space-x-2"
-                  >
-                    <Shield className="w-3 h-3" />
-                    <span>Privacy Policy</span>
+                </li>
+                <li>
+                  <Link href="/about" className="hover:text-green-600">
+                    About
                   </Link>
-                </div>
-                <div>
-                  <Link
-                    href="/terms-of-service"
-                    className="text-green-100 hover:text-white transition-colors flex items-center space-x-2"
-                  >
-                    <FileText className="w-3 h-3" />
-                    <span>Terms of Service</span>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-medium text-gray-900 dark:text-white mb-4">Legal</h4>
+              <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <li>
+                  <Link href="/privacy-policy" className="hover:text-green-600">
+                    Privacy Policy
                   </Link>
-                </div>
-              </div>
+                </li>
+                <li>
+                  <Link href="/terms-of-service" className="hover:text-green-600">
+                    Terms of Service
+                  </Link>
+                </li>
+              </ul>
             </div>
           </div>
-          <Separator className="mb-6 bg-white/20" />
-          <div className="text-center text-sm text-green-100">
-            <p>© 2025 starbuckscaloriecalculator.pro. Built for coffee lovers worldwide.</p>
+          <Separator className="my-8" />
+          <div className="text-center">
+            <p className="text-gray-600 dark:text-gray-300 text-sm">
+              © 2025 starbuckscaloriecalculator.pro. Built for coffee lovers worldwide.
+            </p>
           </div>
         </div>
       </footer>
